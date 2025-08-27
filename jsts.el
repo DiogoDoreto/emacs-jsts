@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'transient)
 
 ;;; Declarations
 ;;
@@ -126,6 +127,27 @@ If DIR is not supplied its set to the current directory by default."
                  (puthash dir 'none jsts-project-root-cache)
                  'none)))))
 
+(defun jsts-ensure-project (&optional dir)
+  "Ensures we are operating in a JS/TS project."
+  (or (jsts-project-root dir)
+      (user-error "Not a JS/TS project.")))
+
+;;; npm
+
+(transient-define-suffix jsts-npm--install-suffix ()
+  (interactive)
+  (let ((default-directory (jsts-ensure-project (transient-scope))))
+    (compile "npm install")))
+
+(transient-define-prefix jsts-npm ()
+  "Display npm commands"
+  ["npm\n"
+   ("i" "Install" jsts-npm--install-suffix)]
+  (interactive)
+  (transient-setup 'jsts-npm nil nil :scope (jsts-ensure-project)))
+
+;;; jsts entrypoint
+
 (defun jsts-package-manager (&optional project)
   "Return package manager name.
 If PROJECT is not specified acts on the current project."
@@ -137,6 +159,13 @@ If PROJECT is not specified acts on the current project."
                        manager)))
                  jsts-lockfile-to-manager-alist)
         jsts-default-manager)))
+
+(defun jsts ()
+  "Begin using jsts"
+  (interactive)
+  (let ((pm (jsts-package-manager (jsts-ensure-project))))
+    (cond ((eq pm 'npm) (jsts-npm))
+          (t (message "%s is not yet supported" pm)))))
 
 (provide 'jsts)
 ;;; jsts.el ends here
