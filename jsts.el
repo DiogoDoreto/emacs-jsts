@@ -134,15 +134,43 @@ If DIR is not supplied its set to the current directory by default."
 
 ;;; npm
 
-(transient-define-suffix jsts-npm--install-suffix ()
+(transient-define-suffix jsts--npm-install-suffix ()
   (interactive)
-  (let ((default-directory (jsts-ensure-project (transient-scope))))
-    (compile "npm install")))
+  (let ((default-directory (jsts-ensure-project (transient-scope)))
+        (args (transient-args (oref transient-current-prefix command))))
+    (compile (format "npm install %s" (string-join args " ")))))
+
+(transient-define-argument jsts--npm-install-save-arg ()
+  "Choices for how to save a package"
+  :class 'transient-switches
+  :argument-format "--%s"
+  :argument-regexp "\\(--\\(\\.\\+\\)\\)"
+  :choices '("save" "no-save" "save-dev" "save-prod" "save-optional" "save-peer" "save-bundle"))
+
+(transient-define-argument jsts--npm-install-packages-arg ()
+  "List of packages to be installed"
+  :class 'transient-option
+  :prompt "Package spec(s): "
+  :argument ""
+  :allow-empty nil)
+
+(transient-define-prefix jsts-npm-install ()
+  "Display npm install commands"
+  ["npm install\n"
+   ("  s" "Save" jsts--npm-install-save-arg)
+   (" -E" "Save exact" "--save-exact")
+   (" -I" "Ignore scripts" "--ignore-scripts")
+   " "
+   ("  p" "Package spec(s)" jsts--npm-install-packages-arg)
+   " "
+   ("RET" "Install" jsts--npm-install-suffix)]
+  (interactive)
+  (transient-setup 'jsts-npm-install nil nil :scope (jsts-ensure-project)))
 
 (transient-define-prefix jsts-npm ()
   "Display npm commands"
   ["npm\n"
-   ("i" "Install" jsts-npm--install-suffix)]
+   ("i" "Install" jsts-npm-install)]
   (interactive)
   (transient-setup 'jsts-npm nil nil :scope (jsts-ensure-project)))
 
