@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'json)
 (require 'transient)
 
 ;;; Declarations
@@ -132,6 +133,20 @@ If DIR is not supplied its set to the current directory by default."
   (or (jsts-project-root dir)
       (user-error "Not a JS/TS project.")))
 
+;;; package.json
+
+(defun jsts--package-json-parse (file)
+  (let ((json-object-type 'alist)
+        (json-key-type 'string)
+        (json-array-type 'list))
+    (ignore-errors (json-read-file file))))
+
+(defun jsts--package-json-get-name (parsed-file)
+  (alist-get "name" parsed-file nil nil #'string=))
+
+(defun jsts--package-json-get-scripts (parsed-file)
+  (alist-get "scripts" parsed-file nil nil #'string=))
+
 ;;; npm
 
 (transient-define-suffix jsts--npm-install-suffix ()
@@ -152,6 +167,7 @@ If DIR is not supplied its set to the current directory by default."
   :class 'transient-option
   :prompt "Package spec(s): "
   :argument ""
+  :always-read t
   :allow-empty nil)
 
 (transient-define-prefix jsts-npm-install ()
@@ -167,10 +183,67 @@ If DIR is not supplied its set to the current directory by default."
   (interactive)
   (transient-setup 'jsts-npm-install nil nil :scope (jsts-ensure-project)))
 
+(defun jsts--npm-script-completion-table (string predicate action)
+  "Completion table for package.json scripts with annotation-function."
+  (and-let* ((project-root (jsts-ensure-project (transient-scope)))
+             (pkg-json (jsts--package-json-parse (expand-file-name "package.json" project-root)))
+             (scripts (jsts--package-json-get-scripts pkg-json)))
+    (cond ((eq action 'metadata)
+           `(metadata
+             (annotation-function
+              . ,(lambda (s)
+                   (let* ((pair (assoc-string s scripts))
+                          (script-name (car pair))
+                          (script-cmd  (cdr pair))
+                          (all-script-names (mapcar #'car scripts))
+                          (max-script-width (apply #'max (mapcar #'string-width all-script-names)))
+                          (padding (- (+ 5 max-script-width)
+                                      (string-width script-name))))
+                     (concat (make-string padding ?\s)
+                             (propertize script-cmd 'face 'font-lock-doc-face)))))))
+          (t
+           (complete-with-action action (mapcar #'car scripts) string predicate)))))
+
+(transient-define-argument jsts--npm-script-arg ()
+  "Name of the script to run."
+  :class 'transient-option
+  :prompt "Script: "
+  :choices (lambda () #'jsts--npm-script-completion-table)
+  :argument ""
+  :always-read t
+  :allow-empty nil)
+
+(transient-define-argument jsts--npm-script-args-arg ()
+  "Extra positional arguments to send to the script."
+  :class 'transient-option
+  :prompt "Script arguments: "
+  :argument "-- "
+  :always-read t
+  :allow-empty nil)
+
+(transient-define-suffix jsts--npm-run-script-suffix ()
+  (interactive)
+  (let ((default-directory (jsts-ensure-project (transient-scope)))
+        (args (transient-args (oref transient-current-prefix command))))
+    (compile (format "npm run %s" (string-join args " ")))))
+
+(transient-define-prefix jsts-npm-run-script ()
+  "Display npm run commands"
+  ["npm run\n"
+   (" -I" "Ignore scripts" "--ignore-scripts")
+   " "
+   ("  s" "Script" jsts--npm-script-arg)
+   (" --" "Script arguments" jsts--npm-script-args-arg)
+   " "
+   ("RET" "Run" jsts--npm-run-script-suffix)]
+  (interactive)
+  (transient-setup 'jsts-npm-run-script nil nil :scope (jsts-ensure-project)))
+
 (transient-define-prefix jsts-npm ()
   "Display npm commands"
   ["npm\n"
-   ("i" "Install" jsts-npm-install)]
+   ("i" "Install" jsts-npm-install)
+   ("s" "Run script" jsts-npm-run-script)]
   (interactive)
   (transient-setup 'jsts-npm nil nil :scope (jsts-ensure-project)))
 
