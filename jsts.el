@@ -6,7 +6,7 @@
 ;; Version: 0.0.1
 ;; Keywords: convenience tools javascript typescript
 ;; URL: https://github.com/DiogoDoreto/emacs-jsts
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.3") (transient "0.9.3"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
