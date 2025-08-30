@@ -63,6 +63,13 @@
   :type  'symbol
   :group 'jsts)
 
+(defcustom jsts-licenses-file
+  (expand-file-name "jsts-licenses.eld"
+                    user-emacs-directory)
+  "Name and location of the JSTS's known licenses file."
+  :type 'string
+  :group 'jsts)
+
 ;;; Project root
 ;;
 ;; Heavily inspired by how Projectile manages its projects
@@ -132,6 +139,35 @@ If DIR is not supplied its set to the current directory by default."
   "Ensures we are operating in a JS/TS project."
   (or (jsts-project-root dir)
       (user-error "Not a JS/TS project.")))
+
+;;; License helpers
+
+(defun jsts-update-licenses-cache ()
+  "Download license list from SPDX and update the contents of the
+`jsts-licenses-file'"
+  (interactive)
+  (url-retrieve
+   "https://raw.githubusercontent.com/spdx/license-list-data/refs/heads/main/json/licenses.json"
+   (lambda (_)
+     (goto-char (point-min))
+     (search-forward "\n\n") ;; Skip HTTP headers
+     (let* ((json-object-type 'alist)
+            (json-array-type 'list)
+            (json-key-type 'symbol)
+            (licenses (alist-get 'licenses (json-read)))
+            (osi-licenses (seq-filter (apply-partially #'alist-get 'isOsiApproved) licenses))
+            (license-ids (mapcar (apply-partially #'alist-get 'licenseId) osi-licenses)))
+       (with-temp-file jsts-licenses-file
+         (insert (let (print-length) (prin1-to-string license-ids))))
+       (message "License list updated.")))))
+
+(defun jsts-osi-licenses ()
+  "List of OSI approved license IDs"
+  (with-demoted-errors "Error while reading licenses file: %S"
+    (when (file-exists-p jsts-licenses-file)
+      (with-temp-buffer
+        (insert-file-contents jsts-licenses-file)
+        (read (current-buffer))))))
 
 ;;; package.json
 
@@ -238,6 +274,35 @@ If DIR is not supplied its set to the current directory by default."
    ("RET" "Run" jsts--npm-run-script-suffix)]
   (interactive)
   (transient-setup 'jsts-npm-run-script nil nil :scope (jsts-ensure-project)))
+
+(transient-define-suffix jsts--npm-init-suffix ()
+  (interactive)
+  (let ((default-directory (or (jsts-project-root (transient-scope))
+                               default-directory))
+        (args (transient-args (oref transient-current-prefix command))))
+    (compile (format "npm init --yes %s" (string-join args " ")))))
+
+(transient-define-prefix jsts-npm-init ()
+  "Display npm init command"
+  ["npm init\n"
+   :class transient-column
+   :pad-keys t
+   ("w" "Workspace" "--workspace=" :reader transient-read-directory)
+   ("n" "Author Name" "--init-author-name=")
+   ("u" "Author URL" "--init-author-url=")
+   ;; TODO learn how to provide async choices and then prompt the user to call
+   ;; `jsts-update-licenses-cache' automatically
+   ("l" "License" "--init-license=" :choices (lambda () (jsts-osi-licenses)))
+   ("t" "Type" "--init-type=" :choices ("module" "commonjs"))
+   ("v" "Version" "--init-version=")
+   ("p" "Private" "--init-private")
+   " "
+   ("RET" "Run" jsts--npm-init-suffix)]
+  (interactive)
+  (transient-setup 'jsts-npm-init nil nil
+                   ;; we don't call `jsts-ensure-project' as init may be called
+                   ;; to create a project
+                   :scope (jsts-project-root)))
 
 (transient-define-prefix jsts-npm ()
   "Display npm commands"
