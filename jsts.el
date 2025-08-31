@@ -183,20 +183,27 @@ If DIR is not supplied its set to the current directory by default."
 (defun jsts--package-json-get-scripts (parsed-file)
   (alist-get "scripts" parsed-file nil nil #'string=))
 
-;;; npm
+;;; Common transient parts
 
-(transient-define-suffix jsts--npm-install-suffix ()
+(defun jsts--exec-suffix ()
+  "Common suffix to run data coming from the scope and args"
   (interactive)
-  (let ((default-directory (jsts-ensure-project (transient-scope)))
-        (args (transient-args (oref transient-current-prefix command))))
-    (compile (format "npm install %s" (string-join args " ")))))
+  (let* ((tscope (transient-scope))
+         (cmd (plist-get tscope :cmd))
+         (default-directory (or (plist-get tscope :cwd)
+                                default-directory))
+         (args (transient-args (oref transient-current-prefix command))))
+    (compile (string-join (cons cmd args) " "))))
+
+;;; npm
 
 (transient-define-argument jsts--npm-install-save-arg ()
   "Choices for how to save a package"
   :class 'transient-switches
   :argument-format "--%s"
-  :argument-regexp "\\(--\\(\\.\\+\\)\\)"
-  :choices '("save" "no-save" "save-dev" "save-prod" "save-optional" "save-peer" "save-bundle"))
+  :argument-regexp "\\(--\\(save\\|no-save\\|save-dev\\|save-prod\\|save-optional\\|save-peer\\|save-bundle\\)\\)"
+  :choices '("save" "no-save" "save-dev" "save-prod" "save-optional" "save-peer" "save-bundle")
+  :init-value (lambda (obj) (oset obj value "--save")))
 
 (transient-define-argument jsts--npm-install-packages-arg ()
   "List of packages to be installed"
@@ -206,6 +213,7 @@ If DIR is not supplied its set to the current directory by default."
   :always-read t
   :allow-empty nil)
 
+;;;###autoload
 (transient-define-prefix jsts-npm-install ()
   "Display npm install commands"
   ["npm install\n"
@@ -215,13 +223,15 @@ If DIR is not supplied its set to the current directory by default."
    " "
    ("  p" "Package spec(s)" jsts--npm-install-packages-arg)
    " "
-   ("RET" "Install" jsts--npm-install-suffix)]
+   ("RET" "Install" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-npm-install nil nil :scope (jsts-ensure-project)))
+  (transient-setup 'jsts-npm-install nil nil
+                   :scope `(:cwd ,(jsts-ensure-project)
+                            :cmd "npm install")))
 
 (defun jsts--npm-script-completion-table (string predicate action)
   "Completion table for package.json scripts with annotation-function."
-  (and-let* ((project-root (jsts-ensure-project (transient-scope)))
+  (and-let* ((project-root (plist-get (transient-scope) :cwd))
              (pkg-json (jsts--package-json-parse (expand-file-name "package.json" project-root)))
              (scripts (jsts--package-json-get-scripts pkg-json)))
     (cond ((eq action 'metadata)
@@ -257,12 +267,7 @@ If DIR is not supplied its set to the current directory by default."
   :always-read t
   :allow-empty nil)
 
-(transient-define-suffix jsts--npm-run-script-suffix ()
-  (interactive)
-  (let ((default-directory (jsts-ensure-project (transient-scope)))
-        (args (transient-args (oref transient-current-prefix command))))
-    (compile (format "npm run %s" (string-join args " ")))))
-
+;;;###autoload
 (transient-define-prefix jsts-npm-run-script ()
   "Display npm run commands"
   ["npm run\n"
@@ -271,17 +276,13 @@ If DIR is not supplied its set to the current directory by default."
    ("  s" "Script" jsts--npm-script-arg)
    (" --" "Script arguments" jsts--npm-script-args-arg)
    " "
-   ("RET" "Run" jsts--npm-run-script-suffix)]
+   ("RET" "Run" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-npm-run-script nil nil :scope (jsts-ensure-project)))
+  (transient-setup 'jsts-npm-run-script nil nil
+                   :scope `(:cwd ,(jsts-ensure-project)
+                            :cmd "npm run")))
 
-(transient-define-suffix jsts--npm-init-suffix ()
-  (interactive)
-  (let ((default-directory (or (jsts-project-root (transient-scope))
-                               default-directory))
-        (args (transient-args (oref transient-current-prefix command))))
-    (compile (format "npm init --yes %s" (string-join args " ")))))
-
+;;;###autoload
 (transient-define-prefix jsts-npm-init ()
   "Display npm init command"
   ["npm init\n"
@@ -297,20 +298,24 @@ If DIR is not supplied its set to the current directory by default."
    ("v" "Version" "--init-version=")
    ("p" "Private" "--init-private")
    " "
-   ("RET" "Run" jsts--npm-init-suffix)]
+   ("RET" "Run" jsts--exec-suffix)]
   (interactive)
   (transient-setup 'jsts-npm-init nil nil
                    ;; we don't call `jsts-ensure-project' as init may be called
                    ;; to create a project
-                   :scope (jsts-project-root)))
+                   :scope `(:cwd ,(jsts-project-root)
+                            :cmd "npm init --yes")))
 
+;;;###autoload
 (transient-define-prefix jsts-npm ()
   "Display npm commands"
   ["npm\n"
-   ("i" "Install" jsts-npm-install)
-   ("s" "Run script" jsts-npm-run-script)]
+   ("i" "Install" jsts-npm-install :if jsts-project-root)
+   ("I" "Init" jsts-npm-init)
+   ("s" "Run script" jsts-npm-run-script :if jsts-project-root)]
   (interactive)
-  (transient-setup 'jsts-npm nil nil :scope (jsts-ensure-project)))
+  (transient-setup 'jsts-npm nil nil
+                   :scope `(:cwd ,(jsts-project-root))))
 
 ;;; jsts entrypoint
 
@@ -326,10 +331,11 @@ If PROJECT is not specified acts on the current project."
                  jsts-lockfile-to-manager-alist)
         jsts-default-manager)))
 
+;;;###autoload
 (defun jsts ()
   "Begin using jsts"
   (interactive)
-  (let ((pm (jsts-package-manager (jsts-ensure-project))))
+  (let ((pm (jsts-package-manager)))
     (cond ((eq pm 'npm) (jsts-npm))
           (t (message "%s is not yet supported" pm)))))
 
