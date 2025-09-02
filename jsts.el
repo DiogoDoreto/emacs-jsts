@@ -52,6 +52,7 @@
   '(("package-lock.json" . npm)
     ("bun.lock"          . bun)
     ("bun.lockb"         . bun)
+    ("deno.lock"         . deno)
     ("yarn.lock"         . yarn)
     ("pnpm-lock.yaml"    . pnpm))
   "Alist mapping lockfile file names to their respective package manager."
@@ -356,6 +357,35 @@ If DIR is not supplied its set to the current directory by default."
    ("I" "Init" jsts-bun-init)]
   (interactive)
   (transient-setup 'jsts-bun nil nil
+                   :scope `(:cwd ,(jsts-project-root))))
+
+;;; deno
+
+;;;###autoload
+(transient-define-prefix jsts-deno-init ()
+  "Display deno init command"
+  :incompatible '(("--lib" "--serve"))
+  ["deno init\n"
+   :class transient-column
+   :pad-keys t
+   ("l" "Generate an example library project" "--lib")
+   ("s" "Generate an example project for `deno serve`" "--serve")
+   " "
+   ("RET" "Run" jsts--exec-and-clear-cache-suffix)]
+  (interactive)
+  (transient-setup 'jsts-deno-init nil nil
+                   ;; we don't call `jsts-ensure-project' as init may be called
+                   ;; to create a project
+                   :scope `(:cwd ,(jsts-project-root)
+                            :cmd "deno init")))
+
+;;;###autoload
+(transient-define-prefix jsts-deno ()
+  "Display deno commands"
+  ["deno\n"
+   ("I" "Init" jsts-deno-init)]
+  (interactive)
+  (transient-setup 'jsts-deno nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
 ;;; pnpm
