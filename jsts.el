@@ -327,6 +327,37 @@ If DIR is not supplied its set to the current directory by default."
   (transient-setup 'jsts-npm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
+;;; bun
+
+;;;###autoload
+(transient-define-prefix jsts-bun-init ()
+  "Display bun init command"
+  :incompatible '(("--minimal" "--react" "--react=tailwind" "--react=shadcn"))
+  ["bun init\n"
+   :class transient-column
+   :pad-keys t
+   ("m"  "Only initialize type definitions" "--minimal")
+   ("rr" "Initialize a React project" "--react")
+   ("rt" "Initialize a React project with TailwindCSS" "--react=tailwind")
+   ("rs" "Initialize a React project with @shadcn/ui and TailwindCSS" "--react=shadcn")
+   " "
+   ("RET" "Run" jsts--exec-and-clear-cache-suffix)]
+  (interactive)
+  (transient-setup 'jsts-bun-init nil nil
+                   ;; we don't call `jsts-ensure-project' as init may be called
+                   ;; to create a project
+                   :scope `(:cwd ,(jsts-project-root)
+                            :cmd "bun init --yes")))
+
+;;;###autoload
+(transient-define-prefix jsts-bun ()
+  "Display bun commands"
+  ["bun\n"
+   ("I" "Init" jsts-bun-init)]
+  (interactive)
+  (transient-setup 'jsts-bun nil nil
+                   :scope `(:cwd ,(jsts-project-root))))
+
 ;;; jsts entrypoint
 
 (defun jsts-package-manager (&optional project)
