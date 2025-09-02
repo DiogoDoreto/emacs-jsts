@@ -304,7 +304,7 @@ If DIR is not supplied its set to the current directory by default."
    ;; TODO learn how to provide async choices and then prompt the user to call
    ;; `jsts-update-licenses-cache' automatically
    ("l" "License" "--init-license=" :choices (lambda () (jsts-osi-licenses)))
-   ("t" "Type" "--init-type=" :choices ("module" "commonjs"))
+   ("t" "Type (module system)" "--init-type=" :choices ("module" "commonjs"))
    ("v" "Version" "--init-version=")
    ("p" "Private" "--init-private")
    " "
@@ -356,6 +356,34 @@ If DIR is not supplied its set to the current directory by default."
    ("I" "Init" jsts-bun-init)]
   (interactive)
   (transient-setup 'jsts-bun nil nil
+                   :scope `(:cwd ,(jsts-project-root))))
+
+;;; pnpm
+
+;;;###autoload
+(transient-define-prefix jsts-pnpm-init ()
+  "Display pnpm init command"
+  ["pnpm init\n"
+   :class transient-column
+   :pad-keys t
+   ("p" "Pin current pnpm version" "--init-package-manager")
+   ("t" "Type (module system)" "--init-type=" :choices ("module" "commonjs"))
+   " "
+   ("RET" "Run" jsts--exec-and-clear-cache-suffix)]
+  (interactive)
+  (transient-setup 'jsts-pnpm-init nil nil
+                   ;; we don't call `jsts-ensure-project' as init may be called
+                   ;; to create a project
+                   :scope `(:cwd ,(jsts-project-root)
+                            :cmd "pnpm init")))
+
+;;;###autoload
+(transient-define-prefix jsts-pnpm ()
+  "Display pnpm commands"
+  ["pnpm\n"
+   ("I" "Init" jsts-pnpm-init)]
+  (interactive)
+  (transient-setup 'jsts-pnpm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
 ;;; jsts entrypoint
