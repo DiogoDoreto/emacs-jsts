@@ -416,6 +416,33 @@ If DIR is not supplied its set to the current directory by default."
   (transient-setup 'jsts-pnpm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
+;;; yarn
+
+;;;###autoload
+(transient-define-prefix jsts-yarn-init ()
+  "Display yarn init command"
+  ["yarn init\n"
+   :class transient-column
+   :pad-keys t
+   ("p" "Private" "--private")
+   " "
+   ("RET" "Run" jsts--exec-and-clear-cache-suffix)]
+  (interactive)
+  (transient-setup 'jsts-yarn-init nil nil
+                   ;; we don't call `jsts-ensure-project' as init may be called
+                   ;; to create a project
+                   :scope `(:cwd ,(jsts-project-root)
+                            :cmd "yarn init --yes")))
+
+;;;###autoload
+(transient-define-prefix jsts-yarn ()
+  "Display yarn commands"
+  ["yarn\n"
+   ("I" "Init" jsts-yarn-init)]
+  (interactive)
+  (transient-setup 'jsts-yarn nil nil
+                   :scope `(:cwd ,(jsts-project-root))))
+
 ;;; jsts entrypoint
 
 (defun jsts-package-manager (&optional project)
