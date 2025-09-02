@@ -58,11 +58,6 @@
   :type  '(alist :key-type string :value-type symbol)
   :group 'jsts)
 
-(defcustom jsts-default-manager 'npm
-  "Default package manager to use if no lockfile is found."
-  :type  'symbol
-  :group 'jsts)
-
 (defcustom jsts-licenses-file
   (expand-file-name "jsts-licenses.eld"
                     user-emacs-directory)
@@ -323,21 +318,40 @@ If DIR is not supplied its set to the current directory by default."
   "Return package manager name.
 If PROJECT is not specified acts on the current project."
   (and-let* ((project-root (or project (jsts-project-root))))
-    (or (cl-some (lambda (pair)
-                   (let ((lockfile (car pair))
-                         (manager (cdr pair)))
-                     (when (file-exists-p (expand-file-name lockfile project-root))
-                       manager)))
-                 jsts-lockfile-to-manager-alist)
-        jsts-default-manager)))
+    (cl-some (lambda (pair)
+               (let ((lockfile (car pair))
+                     (manager (cdr pair)))
+                 (when (file-exists-p (expand-file-name lockfile project-root))
+                   manager)))
+             jsts-lockfile-to-manager-alist)))
+
+(defun jsts-read-package-manager ()
+  "Read a JS/TS package manager."
+  (let ((managers (mapcar (apply-partially #'cdr) jsts-lockfile-to-manager-alist)))
+    (completing-read "Package manager: " managers)))
+
+;;;autoload
+(defun jsts-init ()
+  "Initialize a JS/TS project using a chosen package manager."
+  (interactive)
+  (let* ((pm (jsts-read-package-manager))
+         (init-func (intern (format "jsts-%s-init" pm))))
+    (when (not (fboundp init-func))
+      (user-error "%s has no init function defined yet." pm))
+    (let ((default-directory (transient-read-directory "Initialize project in: " nil nil)))
+      (funcall init-func))))
 
 ;;;###autoload
 (defun jsts ()
   "Begin using jsts"
   (interactive)
-  (let ((pm (jsts-package-manager)))
-    (cond ((eq pm 'npm) (jsts-npm))
-          (t (message "%s is not yet supported" pm)))))
+  (if (not (jsts-project-root))
+      (jsts-init)
+    (let* ((pm (or (jsts-package-manager)
+                   (jsts-read-package-manager)))
+           (pm-func (intern (format "jsts-%s" pm))))
+      (if (fboundp pm-func) (funcall pm-func)
+        (message "%s is not yet supported." pm)))))
 
 (provide 'jsts)
 ;;; jsts.el ends here
