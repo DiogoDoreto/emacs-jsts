@@ -71,6 +71,13 @@
 (defvar jsts-project-root-cache (make-hash-table :test 'equal)
   "Cached value of function `jsts-project-root'.")
 
+(defun jsts--clear-project-cache-for-dir (dir)
+  "Clear project cache for directory DIR and all its children."
+  (maphash (lambda (cached-dir _root)
+             (when (string-prefix-p dir cached-dir)
+               (remhash cached-dir jsts-project-root-cache)))
+           jsts-project-root-cache))
+
 (defun jsts-project-root (&optional dir)
   "Retrieves the root directory of a project if available.
 If DIR is not supplied its set to the current directory by default."
@@ -190,6 +197,14 @@ If DIR is not supplied its set to the current directory by default."
          (args (transient-args (oref transient-current-prefix command))))
     (compile (string-join (cons cmd args) " "))))
 
+(defun jsts--exec-and-clear-cache-suffix ()
+  "Runs `jsts--exec-suffix' and then clears project cache for :cwd from scope"
+  (interactive)
+  (jsts--exec-suffix)
+  (let ((cwd (or (plist-get (transient-scope) :cwd)
+                 default-directory)))
+    (jsts--clear-project-cache-for-dir cwd)))
+
 ;;; npm
 
 (transient-define-argument jsts--npm-install-save-arg ()
@@ -293,7 +308,7 @@ If DIR is not supplied its set to the current directory by default."
    ("v" "Version" "--init-version=")
    ("p" "Private" "--init-private")
    " "
-   ("RET" "Run" jsts--exec-suffix)]
+   ("RET" "Run" jsts--exec-and-clear-cache-suffix)]
   (interactive)
   (transient-setup 'jsts-npm-init nil nil
                    ;; we don't call `jsts-ensure-project' as init may be called
