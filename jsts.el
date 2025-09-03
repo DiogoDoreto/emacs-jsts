@@ -331,6 +331,24 @@ If DIR is not supplied its set to the current directory by default."
 ;;; bun
 
 ;;;###autoload
+(transient-define-prefix jsts-bun-run-script ()
+  "Display bun run commands"
+  ["bun run\n"
+   :pad-keys t
+   ("-b" "Force Bun runtime" "--bun")
+   ("-w" "Restart process on file change" "--watch")
+   ("-h" "Hot reload" "--hot")
+   " "
+   (" s" "Script" jsts--npm-script-arg)
+   ("--" "Script arguments" jsts--npm-script-args-arg :argument "")
+   " "
+   ("RET" "Run" jsts--exec-suffix)]
+  (interactive)
+  (transient-setup 'jsts-bun-run-script nil nil
+                   :scope `(:cwd ,(jsts-ensure-project)
+                            :cmd "bun run")))
+
+;;;###autoload
 (transient-define-prefix jsts-bun-init ()
   "Display bun init command"
   :incompatible '(("--minimal" "--react" "--react=tailwind" "--react=shadcn"))
@@ -354,7 +372,8 @@ If DIR is not supplied its set to the current directory by default."
 (transient-define-prefix jsts-bun ()
   "Display bun commands"
   ["bun\n"
-   ("I" "Init" jsts-bun-init)]
+   ("I" "Init" jsts-bun-init)
+   ("s" "Run script" jsts-bun-run-script :if jsts-project-root)]
   (interactive)
   (transient-setup 'jsts-bun nil nil
                    :scope `(:cwd ,(jsts-project-root))))
@@ -391,6 +410,20 @@ If DIR is not supplied its set to the current directory by default."
 ;;; pnpm
 
 ;;;###autoload
+(transient-define-prefix jsts-pnpm-run-script ()
+  "Display pnpm run commands"
+  ["pnpm run\n"
+   :pad-keys t
+   (" s" "Script" jsts--npm-script-arg)
+   ("--" "Script arguments" jsts--npm-script-args-arg :argument "")
+   " "
+   ("RET" "Run" jsts--exec-suffix)]
+  (interactive)
+  (transient-setup 'jsts-pnpm-run-script nil nil
+                   :scope `(:cwd ,(jsts-ensure-project)
+                            :cmd "pnpm run")))
+
+;;;###autoload
 (transient-define-prefix jsts-pnpm-init ()
   "Display pnpm init command"
   ["pnpm init\n"
@@ -411,12 +444,27 @@ If DIR is not supplied its set to the current directory by default."
 (transient-define-prefix jsts-pnpm ()
   "Display pnpm commands"
   ["pnpm\n"
-   ("I" "Init" jsts-pnpm-init)]
+   ("I" "Init" jsts-pnpm-init)
+   ("s" "Run script" jsts-pnpm-run-script :if jsts-project-root)]
   (interactive)
   (transient-setup 'jsts-pnpm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
 ;;; yarn
+
+;;;###autoload
+(transient-define-prefix jsts-yarn-run-script ()
+  "Display yarn run commands"
+  ["yarn run\n"
+   :pad-keys t
+   (" s" "Script" jsts--npm-script-arg)
+   ("--" "Script arguments" jsts--npm-script-args-arg)
+   " "
+   ("RET" "Run" jsts--exec-suffix)]
+  (interactive)
+  (transient-setup 'jsts-yarn-run-script nil nil
+                   :scope `(:cwd ,(jsts-ensure-project)
+                            :cmd "yarn run")))
 
 ;;;###autoload
 (transient-define-prefix jsts-yarn-init ()
@@ -438,7 +486,8 @@ If DIR is not supplied its set to the current directory by default."
 (transient-define-prefix jsts-yarn ()
   "Display yarn commands"
   ["yarn\n"
-   ("I" "Init" jsts-yarn-init)]
+   ("I" "Init" jsts-yarn-init)
+   ("s" "Run script" jsts-yarn-run-script :if jsts-project-root)]
   (interactive)
   (transient-setup 'jsts-yarn nil nil
                    :scope `(:cwd ,(jsts-project-root))))
