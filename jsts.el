@@ -186,6 +186,125 @@ If DIR is not supplied its set to the current directory by default."
 (defun jsts--package-json-get-scripts (parsed-file)
   (alist-get "scripts" parsed-file nil nil #'string=))
 
+;;; View package
+
+(defun jsts--view-package-data (package-name)
+  "Run the info command and return the parsed the output"
+  (let ((pm (or (jsts-package-manager) 'npm)))
+    (when (eq pm 'deno)
+      ;; Deno's info structure is too different
+      (user-error "Deno is not yet supported for this action."))
+    (let ((response (shell-command-to-string
+                     (format "%s info --json %s" pm package-name))))
+      (unless (string-prefix-p "{" response)
+        (user-error "Error: %s" response))
+      (json-read-from-string response))))
+
+(defun jsts--make-url-button (url)
+  (with-temp-buffer
+    (insert-text-button
+     url
+     'action (lambda (_) (browse-url url))
+     'help-echo (format "Go to %s" url)
+     'follow-link t)
+    (buffer-string)))
+
+(defun jsts--insert-list (rows)
+  "Insert ROWS as a list. Each row is a list of column strings. Columns are
+padded to the maximum width in their respective column."
+  (when rows
+    (let* ((num-cols (length (car rows)))
+           (col-widths
+            (cl-loop for i from 0 below num-cols
+                     collect (apply #'max (mapcar (lambda (row)
+                                                    (length (nth i row)))
+                                                  rows)))))
+      (dolist (row rows)
+        (insert "-")
+        (dotimes (i num-cols)
+          (insert ?\s (string-pad (nth i row) (nth i col-widths))))
+        (insert "\n")))))
+
+(defun jsts--insert-dependency-section (title dependencies)
+  "Insert a collapsible list of dependencies with TITLE and CONTENT at point."
+  (insert (format "\n%s (%s): " title (length dependencies)))
+  (let (ov ov-start)
+    (insert-text-button "[toggle]"
+                        'action (lambda (_)
+                                  (overlay-put ov 'invisible
+                                               (not (overlay-get ov 'invisible)))))
+    (insert "\n")
+    (setq ov-start (point))
+    (jsts--insert-list
+     (mapcar (lambda (dep)
+               (list (propertize (symbol-name (car dep))
+                                 'face 'font-lock-keyword-face)
+                     (cdr dep)))
+             dependencies))
+    (setq ov (make-overlay ov-start (point)))
+    (overlay-put ov 'invisible t)))
+
+(defun jsts-view-package (package-name)
+  "Display information about PACKAGE-NAME in a help window, using project's
+package manager (or npm when none is identified) to fetch the data."
+  (interactive "sPackage name: ")
+  (let* ((data (jsts--view-package-data package-name))
+         (buf-name (format "*jsts-view-package: %s*" package-name)))
+    (save-excursion
+      (with-help-window (get-buffer-create buf-name)
+        (with-current-buffer standard-output
+          (insert (format "%s@%s | %s\n%s\n"
+                          (propertize (alist-get 'name data) 'face 'bold)
+                          (alist-get 'version data)
+                          (propertize (alist-get 'license data) 'face 'font-lock-type-face)
+                          (propertize (alist-get 'description data) 'face 'font-lock-comment-face)))
+          (insert "\nLinks:\n")
+          (let* ((homepage (alist-get 'homepage data))
+                 (repo-url (string-remove-prefix
+                            "git+"
+                            (alist-get 'url (alist-get 'repository data)))))
+            (jsts--insert-list
+             (delq nil
+                   (list
+                    (when homepage
+                      (list (format "%s:" (propertize "Homepage" 'face 'font-lock-keyword-face))
+                            (jsts--make-url-button homepage)))
+                    (when repo-url
+                      (list (format "%s:" (propertize "Repository" 'face 'font-lock-keyword-face))
+                            (jsts--make-url-button repo-url)))))))
+          (insert "\nTags:\n")
+          (let ((tag-list (mapcar
+                           (lambda (tag)
+                             (let* ((tag-name (symbol-name (car tag)))
+                                    (tag-version (cdr tag))
+                                    (tag-time (alist-get (intern tag-version)
+                                                         (alist-get 'time data))))
+                               (list (format "%s:" (propertize tag-name 'face 'font-lock-keyword-face))
+                                     tag-version
+                                     (format "(%s)" (propertize (car (string-split tag-time "T"))
+                                                                'face 'font-lock-comment-face)))))
+                           (alist-get 'dist-tags data))))
+            (jsts--insert-list
+             (cl-sort tag-list #'string> :key (apply-partially #'nth 2))))
+          (when-let ((bin-list (alist-get 'bin data)))
+            (insert "\nBinaries:\n")
+            (dolist (bin-item bin-list)
+              (insert (format "- %s\n" (propertize (symbol-name (car bin-item))
+                                                   'face 'font-lock-keyword-face)))))
+          (when-let ((deps (alist-get 'dependencies data)))
+            (jsts--insert-dependency-section "Dependencies" deps))
+          (when-let ((deps (alist-get 'peerDependencies data)))
+            (jsts--insert-dependency-section "Peer Dependencies" deps))
+          (when-let ((deps (alist-get 'optionalDependencies data)))
+            (jsts--insert-dependency-section "Optional Dependencies" deps))
+          (when-let ((deps (alist-get 'devDependencies data)))
+            (jsts--insert-dependency-section "Dev Dependencies" deps))
+          (when-let ((deps (alist-get 'bundleDependencies data)))
+            (jsts--insert-dependency-section "Bundle Dependencies" deps))
+          (buffer-string)))
+      (with-current-buffer buf-name
+        (hs-minor-mode 1)))))
+
 ;;; Common transient parts
 
 (defun jsts--exec-suffix ()
@@ -323,7 +442,8 @@ If DIR is not supplied its set to the current directory by default."
   ["npm\n"
    ("i" "Install" jsts-npm-install :if jsts-project-root)
    ("I" "Init" jsts-npm-init)
-   ("s" "Run script" jsts-npm-run-script :if jsts-project-root)]
+   ("s" "Run script" jsts-npm-run-script :if jsts-project-root)
+   ("v" "View package info" jsts-view-package)]
   (interactive)
   (transient-setup 'jsts-npm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
@@ -373,7 +493,8 @@ If DIR is not supplied its set to the current directory by default."
   "Display bun commands"
   ["bun\n"
    ("I" "Init" jsts-bun-init)
-   ("s" "Run script" jsts-bun-run-script :if jsts-project-root)]
+   ("s" "Run script" jsts-bun-run-script :if jsts-project-root)
+   ("v" "View package info" jsts-view-package)]
   (interactive)
   (transient-setup 'jsts-bun nil nil
                    :scope `(:cwd ,(jsts-project-root))))
@@ -445,7 +566,8 @@ If DIR is not supplied its set to the current directory by default."
   "Display pnpm commands"
   ["pnpm\n"
    ("I" "Init" jsts-pnpm-init)
-   ("s" "Run script" jsts-pnpm-run-script :if jsts-project-root)]
+   ("s" "Run script" jsts-pnpm-run-script :if jsts-project-root)
+   ("v" "View package info" jsts-view-package)]
   (interactive)
   (transient-setup 'jsts-pnpm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
@@ -487,7 +609,8 @@ If DIR is not supplied its set to the current directory by default."
   "Display yarn commands"
   ["yarn\n"
    ("I" "Init" jsts-yarn-init)
-   ("s" "Run script" jsts-yarn-run-script :if jsts-project-root)]
+   ("s" "Run script" jsts-yarn-run-script :if jsts-project-root)
+   ("v" "View package info" jsts-view-package)]
   (interactive)
   (transient-setup 'jsts-yarn nil nil
                    :scope `(:cwd ,(jsts-project-root))))
