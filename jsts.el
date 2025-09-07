@@ -301,9 +301,7 @@ package manager (or npm when none is identified) to fetch the data."
             (jsts--insert-dependency-section "Dev Dependencies" deps))
           (when-let ((deps (alist-get 'bundleDependencies data)))
             (jsts--insert-dependency-section "Bundle Dependencies" deps))
-          (buffer-string)))
-      (with-current-buffer buf-name
-        (hs-minor-mode 1)))))
+          (buffer-string))))))
 
 ;;; Common transient parts
 
