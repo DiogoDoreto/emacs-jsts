@@ -36,26 +36,15 @@
   (interactive)
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
-  (let* ((query
-          "(pair
-               key: (string) @dep-key
-               value: (object
-                 (pair
-                   key: (string) @pkg-key
-                   value: (string) @pkg-version
-                 )+
-               )
-               (#match? @dep-key \"^\\\"\\(dependencies\\|devDependencies\\|peerDependencies\\)\\\"\")
-             )")
-         (qry '((pair
-                 key: (string) @dep-key
-                 value: (object
-                         (pair
-                          key: (string) @pkg-key
-                          value: (string))
-                         :+))))
-         (root (treesit-buffer-root-node))
-         (matches (treesit-query-capture 'json qry)))
+  (let* ((query '((pair
+                   key: (string) @dep-key
+                   value: (object
+                           (pair
+                            key: (string) @pkg-key
+                            value: (string))
+                           :+)
+                   (:match "^\"\\(dependencies\\|devDependencies\\|peerDependencies\\)\"$" @dep-key))))
+         (matches (treesit-query-capture 'json query)))
     (save-excursion
       (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))
       (dolist (match matches)
