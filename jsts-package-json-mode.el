@@ -45,25 +45,26 @@
                            :+)
                    (:match "^\"\\(dependencies\\|devDependencies\\|peerDependencies\\)\"$" @dep-key))))
          (matches (treesit-query-capture 'json query)))
-    (save-excursion
-      (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))
-      (dolist (match matches)
-        (let ((capture (car match))
-              (node (cdr match)))
-          (when (string= capture "pkg-key")
-            (let* ((start (treesit-node-start node))
-                   (end (treesit-node-end node))
-                   (label (buffer-substring-no-properties (1+ start) (1- end))))
-              (goto-char start)
-              (when (not (get-text-property start 'jsts-pkg-dep))
-                (make-text-button (1+ start) (1- end)
-                                  'type 'jsts-pkg-dep-button
-                                  'jsts-pkg-dep t
-                                  'help-echo (format "View %s package information" label)
-                                  'action #'jsts-package-json--button-action)
-                (let ((ov (make-overlay (1+ start) (1- end))))
-                  (overlay-put ov 'face 'underline)
-                  (overlay-put ov 'jsts-pkg-dep t))))))))))
+    (with-silent-modifications
+      (save-excursion
+        (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))
+        (dolist (match matches)
+          (let ((capture (car match))
+                (node (cdr match)))
+            (when (string= capture "pkg-key")
+              (let* ((start (treesit-node-start node))
+                     (end (treesit-node-end node))
+                     (label (buffer-substring-no-properties (1+ start) (1- end))))
+                (goto-char start)
+                (when (not (get-text-property start 'jsts-pkg-dep))
+                  (make-text-button (1+ start) (1- end)
+                                    'type 'jsts-pkg-dep-button
+                                    'jsts-pkg-dep t
+                                    'help-echo (format "View %s package information" label)
+                                    'action #'jsts-package-json--button-action)
+                  (let ((ov (make-overlay (1+ start) (1- end))))
+                    (overlay-put ov 'face 'underline)
+                    (overlay-put ov 'jsts-pkg-dep t)))))))))))
 
 (define-button-type 'jsts-pkg-dep-button
   'follow-link t
