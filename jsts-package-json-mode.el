@@ -36,38 +36,34 @@
   (interactive)
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
-  (let* ((query '((pair
+  (let* ((dep-key-regexp (rx-let ((dep-keys (or "dependencies" "devDependencies" "peerDependencies" "optionalDependencies")))
+                           (rx bol ?\" dep-keys ?\" eol)))
+         (query `((pair
                    key: (string) @dep-key
-                   value: (object
-                           (pair
-                            key: (string) @pkg-key
-                            value: (string)))
-                   (:match "^\"\\(dependencies\\|devDependencies\\|peerDependencies\\)\"$" @dep-key))))
+                   value: (object (pair
+                                   key: (string) @pkg-key
+                                   value: (string)))
+                   (:match ,dep-key-regexp @dep-key))))
          (matches (treesit-query-capture 'json query)))
-    (with-silent-modifications
-      (save-excursion
-        (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))
-        (dolist (match matches)
-          (let ((capture (car match))
-                (node (cdr match)))
-            (when (string= capture "pkg-key")
-              (let* ((start (treesit-node-start node))
-                     (end (treesit-node-end node))
-                     (label (buffer-substring-no-properties (1+ start) (1- end))))
-                (goto-char start)
-                (when (not (get-text-property start 'jsts-pkg-dep))
-                  (make-text-button (1+ start) (1- end)
-                                    'type 'jsts-pkg-dep-button
-                                    'jsts-pkg-dep t
-                                    'help-echo (format "View %s package information" label)
-                                    'action #'jsts-package-json--button-action)
-                  (let ((ov (make-overlay (1+ start) (1- end))))
-                    (overlay-put ov 'face 'underline)
-                    (overlay-put ov 'jsts-pkg-dep t)))))))))))
+    (dolist (match matches)
+      (let ((capture (car match))
+            (node (cdr match)))
+        (when (string= capture "pkg-key")
+          ;; we bind start and end moving 1 char to ignore the quotes
+          (let* ((start (1+ (treesit-node-start node)))
+                 (end (1- (treesit-node-end node)))
+                 (pkg-name (buffer-substring-no-properties start end))
+                 (existing-button (button-at start)))
+            (unless existing-button
+              (make-button start end
+                           'type 'jsts-pkg-dep-button
+                           'help-echo (format "View %s package information" pkg-name)
+                           'action #'jsts-package-json--button-action))))))))
 
 (define-button-type 'jsts-pkg-dep-button
+  'jsts-pkg-dep t
   'follow-link t
-  'face 'link)
+  'face 'underline)
 
 ;;;###autoload
 (defun jsts-package-json--after-change (_beg _end _len)
@@ -82,9 +78,8 @@
         (add-hook 'after-change-functions #'jsts-package-json--after-change nil t)
         (jsts-package-json--buttonize-dependencies))
     (remove-hook 'after-change-functions #'jsts-package-json--after-change t)
-    (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))))
+    (remove-overlays (point-min) (point-max) 'jsts-pkg-dep t)))
 
-;; (add-hook 'json-mode-hook #'jsts-package-json-mode)
 (add-hook 'json-ts-mode-hook #'jsts-package-json-mode)
 
 (provide 'jsts-package-json-mode)
