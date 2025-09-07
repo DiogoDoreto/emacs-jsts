@@ -41,8 +41,7 @@
                    value: (object
                            (pair
                             key: (string) @pkg-key
-                            value: (string))
-                           :+)
+                            value: (string)))
                    (:match "^\"\\(dependencies\\|devDependencies\\|peerDependencies\\)\"$" @dep-key))))
          (matches (treesit-query-capture 'json query)))
     (with-silent-modifications
