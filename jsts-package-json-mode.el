@@ -78,7 +78,13 @@
     (remove-hook 'after-change-functions #'jsts-package-json--after-change t)
     (remove-overlays (point-min) (point-max) 'jsts-package-json--overlay t)))
 
-(add-hook 'json-ts-mode-hook #'jsts-package-json-mode)
+(defun jsts-package-json--maybe-activate ()
+  "Enable `jsts-package-json-mode' only for files named 'package.json'."
+  (when (and buffer-file-name
+             (string= (file-name-nondirectory buffer-file-name) "package.json"))
+    (jsts-package-json-mode 1)))
+
+(add-hook 'json-ts-mode-hook #'jsts-package-json--maybe-activate)
 
 (provide 'jsts-package-json-mode)
 ;;; jsts-package-json-mode.el ends here
