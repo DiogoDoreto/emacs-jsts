@@ -27,13 +27,16 @@
   "Enhancements for package.json files."
   :group 'tools)
 
-(defun jsts-package-json--button-action (button)
-  "Placeholder action for dependency BUTTON."
+(define-button-type 'jsts-package-json--button
+  'jsts-package-json--overlay t
+  'follow-link t
+  'face 'underline)
+
+(defun jsts-package-json--view-package-action (button)
   (jsts-view-package (button-label button)))
 
 (defun jsts-package-json--buttonize-dependencies ()
   "Find all dependency names in package.json and make them text buttons."
-  (interactive)
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
   (let* ((dep-key-regexp (rx-let ((dep-keys (or "dependencies" "devDependencies" "peerDependencies" "optionalDependencies")))
@@ -56,20 +59,15 @@
                  (existing-button (button-at start)))
             (unless existing-button
               (make-button start end
-                           'type 'jsts-pkg-dep-button
+                           'type 'jsts-package-json--button
                            'help-echo (format "View %s package information" pkg-name)
-                           'action #'jsts-package-json--button-action))))))))
+                           'action #'jsts-package-json--view-package-action))))))))
 
-(define-button-type 'jsts-pkg-dep-button
-  'jsts-pkg-dep t
-  'follow-link t
-  'face 'underline)
-
-;;;###autoload
 (defun jsts-package-json--after-change (_beg _end _len)
   (when jsts-package-json-mode
     (jsts-package-json--buttonize-dependencies)))
 
+;;;###autoload
 (define-minor-mode jsts-package-json-mode
   "Minor mode for enhancing package.json files."
   :lighter " JSTSPkg"
@@ -78,7 +76,7 @@
         (add-hook 'after-change-functions #'jsts-package-json--after-change nil t)
         (jsts-package-json--buttonize-dependencies))
     (remove-hook 'after-change-functions #'jsts-package-json--after-change t)
-    (remove-overlays (point-min) (point-max) 'jsts-pkg-dep t)))
+    (remove-overlays (point-min) (point-max) 'jsts-package-json--overlay t)))
 
 (add-hook 'json-ts-mode-hook #'jsts-package-json-mode)
 
