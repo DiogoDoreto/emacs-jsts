@@ -21,7 +21,7 @@
 
 ;;; Code:
 (require 'treesit)
-(require 'button)
+(require 'jsts)
 
 (defgroup jsts-package-json-mode nil
   "Enhancements for package.json files."
@@ -29,7 +29,7 @@
 
 (defun jsts-package-json--button-action (button)
   "Placeholder action for dependency BUTTON."
-  (message "Clicked on dependency: %s" (button-label button)))
+  (jsts-view-package (button-label button)))
 
 (defun jsts-package-json--buttonize-dependencies ()
   "Find all dependency names in package.json and make them text buttons."
@@ -59,8 +59,11 @@
                 (make-text-button (1+ start) (1- end)
                                   'type 'jsts-pkg-dep-button
                                   'jsts-pkg-dep t
-                                  'help-echo "Dependency name"
-                                  'action #'jsts-package-json--button-action)))))))))
+                                  'help-echo (format "View %s package information" label)
+                                  'action #'jsts-package-json--button-action)
+                (let ((ov (make-overlay (1+ start) (1- end))))
+                  (overlay-put ov 'face 'underline)
+                  (overlay-put ov 'jsts-pkg-dep t))))))))))
 
 (define-button-type 'jsts-pkg-dep-button
   'follow-link t
