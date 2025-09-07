@@ -70,11 +70,18 @@
   'face 'link)
 
 ;;;###autoload
+(defun jsts-package-json--after-change (_beg _end _len)
+  (when jsts-package-json-mode
+    (jsts-package-json--buttonize-dependencies)))
+
 (define-minor-mode jsts-package-json-mode
   "Minor mode for enhancing package.json files."
   :lighter " JSTSPkg"
   (if jsts-package-json-mode
-      (jsts-package-json--buttonize-dependencies)
+      (progn
+        (add-hook 'after-change-functions #'jsts-package-json--after-change nil t)
+        (jsts-package-json--buttonize-dependencies))
+    (remove-hook 'after-change-functions #'jsts-package-json--after-change t)
     (remove-text-properties (point-min) (point-max) '(jsts-pkg-dep t))))
 
 ;; (add-hook 'json-mode-hook #'jsts-package-json-mode)
