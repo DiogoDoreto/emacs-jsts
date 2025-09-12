@@ -323,6 +323,44 @@ package manager (or npm when none is identified) to fetch the data."
                  default-directory)))
     (jsts--clear-project-cache-for-dir cwd)))
 
+(defclass jsts--transient-scope-option (transient-option)
+  ((scope-key :initarg :scope-key))
+  "Class used for arguments that update a key value in the transient-scope plist")
+
+(cl-defmethod transient-init-value ((obj jsts--transient-scope-option))
+  "Extract OBJ's value from the value of the scope-key in transient-scope"
+  (oset obj value
+        (plist-get (transient-scope) (oref obj scope-key))))
+
+(cl-defmethod transient-format-value ((obj jsts--transient-scope-option))
+  "Just print the value"
+  (propertize (prin1-to-string (oref obj value))
+              'face 'transient-value))
+
+(cl-defmethod transient-infix-set ((obj jsts--transient-scope-option) value)
+  "Update value of the scope-key in transient-scope"
+  (let* ((scope (transient-scope))
+         (key (oref obj scope-key))
+         (new-scope (plist-put scope key value)))
+    (oset transient--prefix scope new-scope)
+    (oset obj value value)))
+
+(cl-defmethod transient-infix-value ((_   jsts--transient-scope-option))
+  "Return nil, which means \"no value\" as it has already been set inside
+  transient-scope"
+  nil)
+
+(transient-define-infix jsts--cwd-infix ()
+  "Update the :cwd value in scope"
+  :class 'jsts--transient-scope-option
+  :scope-key :cwd
+  :description "Working directory"
+  :prompt "Working directory: "
+  :reader #'transient-read-existing-directory
+  :argument "$CWD="
+  :key "$c"
+  :always-read t)
+
 ;;; npm
 
 (transient-define-argument jsts--npm-install-save-arg ()
@@ -359,7 +397,9 @@ package manager (or npm when none is identified) to fetch the data."
 
 (defun jsts--npm-script-completion-table (string predicate action)
   "Completion table for package.json scripts with annotation-function."
-  (and-let* ((project-root (plist-get (transient-scope) :cwd))
+  (and-let* (
+             (cwd (plist-get (transient-scope) :cwd))
+             (project-root (locate-dominating-file cwd "package.json"))
              (pkg-json (jsts--package-json-parse (expand-file-name "package.json" project-root)))
              (scripts (jsts--package-json-get-scripts pkg-json)))
     (cond ((eq action 'metadata)
@@ -533,6 +573,7 @@ package manager (or npm when none is identified) to fetch the data."
   "Display pnpm run commands"
   ["pnpm run\n"
    :pad-keys t
+   (jsts--cwd-infix)
    (" s" "Script" jsts--npm-script-arg)
    ("--" "Script arguments" jsts--npm-script-args-arg :argument "")
    " "
