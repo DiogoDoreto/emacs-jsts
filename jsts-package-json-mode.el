@@ -36,7 +36,7 @@
   (jsts-view-package (button-label button)))
 
 (defun jsts-package-json--buttonize-dependencies ()
-  "Find all dependency names in package.json and make them text buttons."
+  "Find all dependency names in package.json and make them buttons."
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
   (let* ((dep-key-regexp (rx-let ((dep-keys (or "dependencies" "devDependencies" "peerDependencies" "optionalDependencies")))
@@ -63,9 +63,41 @@
                            'help-echo (format "View %s package information" pkg-name)
                            'action #'jsts-package-json--view-package-action))))))))
 
-(defun jsts-package-json--after-change (_beg _end _len)
+(defun jsts-package-json--run-script-action (button)
+  (jsts "run-script"
+        (button-label button)
+        (file-name-directory buffer-file-name)))
+
+(defun jsts-package-json--buttonize-scripts ()
+  "Find all script names in package.json and make them buttons."
+  (when (not (derived-mode-p 'json-ts-mode))
+    (user-error "Only json-ts-mode is supported."))
+  (let* ((query '((pair
+                   key: (string) @scripts-key
+                   value: (object (pair
+                                   key: (string) @script-key
+                                   value: (string)))
+                   (:match "^\"scripts\"$" @scripts-key))))
+         (matches (treesit-query-capture 'json query)))
+    (dolist (match matches)
+      (let ((capture (car match))
+            (node (cdr match)))
+        (when (string= capture "script-key")
+          ;; we bind start and end moving 1 char to ignore the quotes
+          (let* ((start (1+ (treesit-node-start node)))
+                 (end (1- (treesit-node-end node)))
+                 (script-name (buffer-substring-no-properties start end))
+                 (existing-button (button-at start)))
+            (unless existing-button
+              (make-button start end
+                           'type 'jsts-package-json--button
+                           'help-echo (format "Run script: %s" script-name)
+                           'action #'jsts-package-json--run-script-action))))))))
+
+(defun jsts-package-json--after-change (&rest _)
   (when jsts-package-json-mode
-    (jsts-package-json--buttonize-dependencies)))
+    (jsts-package-json--buttonize-dependencies)
+    (jsts-package-json--buttonize-scripts)))
 
 ;;;###autoload
 (define-minor-mode jsts-package-json-mode
@@ -74,7 +106,7 @@
   (if jsts-package-json-mode
       (progn
         (add-hook 'after-change-functions #'jsts-package-json--after-change nil t)
-        (jsts-package-json--buttonize-dependencies))
+        (jsts-package-json--after-change))
     (remove-hook 'after-change-functions #'jsts-package-json--after-change t)
     (remove-overlays (point-min) (point-max) 'jsts-package-json--overlay t)))
 

@@ -323,7 +323,32 @@ package manager (or npm when none is identified) to fetch the data."
                  default-directory)))
     (jsts--clear-project-cache-for-dir cwd)))
 
-(defclass jsts--transient-scope-option (transient-option)
+;;; jsts--transient-option class
+
+(defclass jsts--transient-option (transient-option)
+  ((print-argument :initarg :print-argument :initform nil))
+  "Class used for arguments that may not print it's argument back on the value")
+
+(cl-defmethod transient-infix-value ((obj jsts--transient-option))
+  "Return the value prefixed by its argument when print-argument slot is non-nil"
+  (let* ((value (oref obj value))
+         (print-arg (oref obj print-argument))
+         (arg (when print-arg (oref obj argument))))
+    (concat arg value)))
+
+(cl-defmethod transient-format-value ((obj jsts--transient-option))
+  "Format the value prefixed by its argument when print-argument slot is non-nil"
+  (let* ((value (oref obj value))
+         (print-arg (oref obj print-argument))
+         (arg (when print-arg (oref obj argument))))
+    (concat (when arg (propertize arg 'face (if value 'transient-argument
+                                              'transient-inactive-argument)))
+            (when value (propertize (prin1-to-string value t)
+                                    'face 'transient-value)))))
+
+;;; jsts--transient-scope-option class
+
+(defclass jsts--transient-scope-option (jsts--transient-option)
   ((scope-key :initarg :scope-key))
   "Class used for arguments that update a key value in the transient-scope plist")
 
@@ -331,11 +356,6 @@ package manager (or npm when none is identified) to fetch the data."
   "Extract OBJ's value from the value of the scope-key in transient-scope"
   (oset obj value
         (plist-get (transient-scope) (oref obj scope-key))))
-
-(cl-defmethod transient-format-value ((obj jsts--transient-scope-option))
-  "Just print the value"
-  (propertize (prin1-to-string (oref obj value))
-              'face 'transient-value))
 
 (cl-defmethod transient-infix-set ((obj jsts--transient-scope-option) value)
   "Update value of the scope-key in transient-scope"
@@ -420,35 +440,49 @@ package manager (or npm when none is identified) to fetch the data."
 
 (transient-define-argument jsts--npm-script-arg ()
   "Name of the script to run."
-  :class 'transient-option
+  :class 'jsts--transient-option
+  :description "Script"
+  :key " s"
   :prompt "Script: "
   :choices (lambda () #'jsts--npm-script-completion-table)
-  :argument ""
+  :argument ":script=" ; this won't get printed, but it's useful when initializing a prefix
   :always-read t
   :allow-empty nil)
 
 (transient-define-argument jsts--npm-script-args-arg ()
   "Extra positional arguments to send to the script."
-  :class 'transient-option
+  :class 'jsts--transient-option
+  :description "Script arguments"
+  :key "--"
   :prompt "Script arguments: "
   :argument "-- "
   :always-read t
   :allow-empty nil)
 
 ;;;###autoload
-(transient-define-prefix jsts-npm-run-script ()
-  "Display npm run commands"
-  ["npm run\n"
-   (" -I" "Ignore scripts" "--ignore-scripts")
+(transient-define-prefix jsts-npm-run-script (&optional script cwd)
+  "Display npm run commands
+
+SCRIPT (optional): The npm script to run. If non-nil, it will be pre-selected in
+the menu.
+CWD (optional): The directory in which to run the npm command. If nil, the
+current project root is used."
+  ["npm run"
+   :pad-keys t
+   (jsts--cwd-infix)
    " "
-   ("  s" "Script" jsts--npm-script-arg)
-   (" --" "Script arguments" jsts--npm-script-args-arg)
+   ("-I" "Ignore scripts" "--ignore-scripts")
+   " "
+   (jsts--npm-script-arg)
+   (jsts--npm-script-args-arg :print-argument t)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-npm-run-script nil nil
-                   :scope `(:cwd ,(jsts-ensure-project)
-                            :cmd "npm run")))
+  (let ((project-root (jsts-ensure-project cwd)))
+    (transient-setup 'jsts-npm-run-script nil nil
+                     :value (list (when script (concat ":script=" script)))
+                     :scope (list :cwd (or cwd project-root)
+                                  :cmd "npm run"))))
 
 ;;;###autoload
 (transient-define-prefix jsts-npm-init ()
@@ -489,22 +523,31 @@ package manager (or npm when none is identified) to fetch the data."
 ;;; bun
 
 ;;;###autoload
-(transient-define-prefix jsts-bun-run-script ()
-  "Display bun run commands"
-  ["bun run\n"
+(transient-define-prefix jsts-bun-run-script (&optional script cwd)
+  "Display bun run commands
+
+SCRIPT (optional): The bun script to run. If non-nil, it will be pre-selected in
+the menu.
+CWD (optional): The directory in which to run the bun command. If nil, the
+current project root is used."
+  ["bun run"
    :pad-keys t
+   (jsts--cwd-infix)
+   " "
    ("-b" "Force Bun runtime" "--bun")
    ("-w" "Restart process on file change" "--watch")
    ("-h" "Hot reload" "--hot")
    " "
-   (" s" "Script" jsts--npm-script-arg)
-   ("--" "Script arguments" jsts--npm-script-args-arg :argument "")
+   (jsts--npm-script-arg)
+   (jsts--npm-script-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-bun-run-script nil nil
-                   :scope `(:cwd ,(jsts-ensure-project)
-                            :cmd "bun run")))
+  (let ((project-root (jsts-ensure-project cwd)))
+    (transient-setup 'jsts-bun-run-script nil nil
+                     :value (list (when script (concat ":script=" script)))
+                     :scope (list :cwd (or cwd project-root)
+                                  :cmd "bun run"))))
 
 ;;;###autoload
 (transient-define-prefix jsts-bun-init ()
@@ -569,19 +612,27 @@ package manager (or npm when none is identified) to fetch the data."
 ;;; pnpm
 
 ;;;###autoload
-(transient-define-prefix jsts-pnpm-run-script ()
-  "Display pnpm run commands"
-  ["pnpm run\n"
+(transient-define-prefix jsts-pnpm-run-script (&optional script cwd)
+  "Display pnpm run commands
+
+SCRIPT (optional): The pnpm script to run. If non-nil, it will be pre-selected
+in the menu.
+CWD (optional): The directory in which to run the pnpm command. If nil, the
+current project root is used."
+  ["pnpm run"
    :pad-keys t
    (jsts--cwd-infix)
-   (" s" "Script" jsts--npm-script-arg)
-   ("--" "Script arguments" jsts--npm-script-args-arg :argument "")
+   " "
+   (jsts--npm-script-arg)
+   (jsts--npm-script-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-pnpm-run-script nil nil
-                   :scope `(:cwd ,(jsts-ensure-project)
-                            :cmd "pnpm run")))
+  (let ((project-root (jsts-ensure-project cwd)))
+    (transient-setup 'jsts-pnpm-run-script nil nil
+                     :value (list (when script (concat ":script=" script)))
+                     :scope (list :cwd (or cwd project-root)
+                                  :cmd "pnpm run"))))
 
 ;;;###autoload
 (transient-define-prefix jsts-pnpm-init ()
@@ -614,18 +665,27 @@ package manager (or npm when none is identified) to fetch the data."
 ;;; yarn
 
 ;;;###autoload
-(transient-define-prefix jsts-yarn-run-script ()
-  "Display yarn run commands"
-  ["yarn run\n"
+(transient-define-prefix jsts-yarn-run-script (&optional script cwd)
+  "Display yarn run commands
+
+SCRIPT (optional): The yarn script to run. If non-nil, it will be pre-selected in
+the menu.
+CWD (optional): The directory in which to run the yarn command. If nil, the
+current project root is used."
+  ["yarn run"
    :pad-keys t
-   (" s" "Script" jsts--npm-script-arg)
-   ("--" "Script arguments" jsts--npm-script-args-arg)
+   (jsts--cwd-infix)
+   " "
+   (jsts--npm-script-arg)
+   (jsts--npm-script-args-arg :print-argument t)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
-  (transient-setup 'jsts-yarn-run-script nil nil
-                   :scope `(:cwd ,(jsts-ensure-project)
-                            :cmd "yarn run")))
+  (let ((project-root (jsts-ensure-project cwd)))
+    (transient-setup 'jsts-yarn-run-script nil nil
+                     :value (list (when script (concat ":script=" script)))
+                     :scope (list :cwd (or cwd project-root)
+                                  :cmd "yarn run"))))
 
 ;;;###autoload
 (transient-define-prefix jsts-yarn-init ()
@@ -684,15 +744,18 @@ If PROJECT is not specified acts on the current project."
       (funcall init-func))))
 
 ;;;###autoload
-(defun jsts ()
+(defun jsts (&optional cmd &rest args)
   "Begin using jsts"
   (interactive)
-  (if (not (jsts-project-root))
+  (if (and (not (jsts-project-root))
+           (not cmd))
       (jsts-init)
     (let* ((pm (or (jsts-package-manager)
                    (jsts-read-package-manager)))
-           (pm-func (intern (format "jsts-%s" pm))))
-      (if (fboundp pm-func) (funcall pm-func)
+           (pm-func (intern (if cmd
+                                (format "jsts-%s-%s" pm cmd)
+                              (format "jsts-%s" pm)))))
+      (if (fboundp pm-func) (apply pm-func args)
         (message "%s is not yet supported." pm)))))
 
 (provide 'jsts)
