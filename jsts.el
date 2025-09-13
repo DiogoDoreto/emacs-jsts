@@ -381,6 +381,53 @@ package manager (or npm when none is identified) to fetch the data."
   :key "$c"
   :always-read t)
 
+;;; ** Package scripts arguments
+
+(defun jsts--script-completion-table (string predicate action)
+  "Completion table for package.json scripts with annotation-function."
+  (and-let* (
+             (cwd (plist-get (transient-scope) :cwd))
+             (project-root (locate-dominating-file cwd "package.json"))
+             (pkg-json (jsts--package-json-parse (expand-file-name "package.json" project-root)))
+             (scripts (jsts--package-json-get-scripts pkg-json)))
+    (cond ((eq action 'metadata)
+           `(metadata
+             (annotation-function
+              . ,(lambda (s)
+                   (let* ((pair (assoc-string s scripts))
+                          (script-name (car pair))
+                          (script-cmd  (cdr pair))
+                          (all-script-names (mapcar #'car scripts))
+                          (max-script-width (apply #'max (mapcar #'string-width all-script-names)))
+                          (padding (- (+ 5 max-script-width)
+                                      (string-width script-name))))
+                     (concat (make-string padding ?\s)
+                             (propertize script-cmd 'face 'font-lock-doc-face)))))))
+          (t
+           (complete-with-action action (mapcar #'car scripts) string predicate)))))
+
+(transient-define-argument jsts--script-arg ()
+  "Name of the script to run."
+  :class 'jsts--transient-option
+  :description "Script"
+  :key " s"
+  :prompt "Script: "
+  :choices (lambda () #'jsts--script-completion-table)
+  :print-argument nil
+  :argument ":script=" ; this won't get printed, but it's useful when initializing a prefix
+  :always-read t
+  :allow-empty nil)
+
+(transient-define-argument jsts--script-extra-args-arg ()
+  "Extra positional arguments to send to the script."
+  :class 'jsts--transient-option
+  :description "Script arguments"
+  :key "--"
+  :prompt "Script arguments: "
+  :argument "-- "
+  :always-read t
+  :allow-empty nil)
+
 ;;; * Package managers transient menus
 
 ;;; ** npm
@@ -417,51 +464,6 @@ package manager (or npm when none is identified) to fetch the data."
                    :scope `(:cwd ,(jsts-ensure-project)
                             :cmd "npm install")))
 
-(defun jsts--npm-script-completion-table (string predicate action)
-  "Completion table for package.json scripts with annotation-function."
-  (and-let* (
-             (cwd (plist-get (transient-scope) :cwd))
-             (project-root (locate-dominating-file cwd "package.json"))
-             (pkg-json (jsts--package-json-parse (expand-file-name "package.json" project-root)))
-             (scripts (jsts--package-json-get-scripts pkg-json)))
-    (cond ((eq action 'metadata)
-           `(metadata
-             (annotation-function
-              . ,(lambda (s)
-                   (let* ((pair (assoc-string s scripts))
-                          (script-name (car pair))
-                          (script-cmd  (cdr pair))
-                          (all-script-names (mapcar #'car scripts))
-                          (max-script-width (apply #'max (mapcar #'string-width all-script-names)))
-                          (padding (- (+ 5 max-script-width)
-                                      (string-width script-name))))
-                     (concat (make-string padding ?\s)
-                             (propertize script-cmd 'face 'font-lock-doc-face)))))))
-          (t
-           (complete-with-action action (mapcar #'car scripts) string predicate)))))
-
-(transient-define-argument jsts--npm-script-arg ()
-  "Name of the script to run."
-  :class 'jsts--transient-option
-  :description "Script"
-  :key " s"
-  :prompt "Script: "
-  :choices (lambda () #'jsts--npm-script-completion-table)
-  :print-argument nil
-  :argument ":script=" ; this won't get printed, but it's useful when initializing a prefix
-  :always-read t
-  :allow-empty nil)
-
-(transient-define-argument jsts--npm-script-args-arg ()
-  "Extra positional arguments to send to the script."
-  :class 'jsts--transient-option
-  :description "Script arguments"
-  :key "--"
-  :prompt "Script arguments: "
-  :argument "-- "
-  :always-read t
-  :allow-empty nil)
-
 ;;;###autoload
 (transient-define-prefix jsts-npm-run-script (&optional script cwd)
   "Display npm run commands
@@ -476,8 +478,8 @@ current project root is used."
    " "
    ("-I" "Ignore scripts" "--ignore-scripts")
    " "
-   (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg)
+   (jsts--script-arg)
+   (jsts--script-extra-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -541,8 +543,8 @@ current project root is used."
    ("-w" "Restart process on file change" "--watch")
    ("-h" "Hot reload" "--hot")
    " "
-   (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg :print-argument nil)
+   (jsts--script-arg)
+   (jsts--script-extra-args-arg :print-argument nil)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -626,8 +628,8 @@ current project root is used."
    :pad-keys t
    (jsts--cwd-infix)
    " "
-   (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg :print-argument nil)
+   (jsts--script-arg)
+   (jsts--script-extra-args-arg :print-argument nil)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -679,8 +681,8 @@ current project root is used."
    :pad-keys t
    (jsts--cwd-infix)
    " "
-   (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg)
+   (jsts--script-arg)
+   (jsts--script-extra-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
