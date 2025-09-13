@@ -35,13 +35,13 @@
 (require 'json)
 (require 'transient)
 
-;;; Declarations
+;;; * Declarations
 ;;
 ;; A bunch of variable and function declarations
 ;; needed to appease the byte-compiler.
 (declare-function tramp-archive-file-name-p "tramp-archive")
 
-;;; Customization
+;;; * Customization
 (defgroup jsts nil
   "Manage and navigate projects easily."
   :group 'tools
@@ -66,7 +66,7 @@
   :type 'string
   :group 'jsts)
 
-;;; Project root
+;;; * Project root
 ;;
 ;; Heavily inspired by how Projectile manages its projects
 (defvar jsts-project-root-cache (make-hash-table :test 'equal)
@@ -143,7 +143,7 @@ If DIR is not supplied its set to the current directory by default."
   (or (jsts-project-root dir)
       (user-error "Not a JS/TS project.")))
 
-;;; License helpers
+;;; * License helpers
 
 (defun jsts-update-licenses-cache ()
   "Download license list from SPDX and update the contents of the
@@ -172,7 +172,7 @@ If DIR is not supplied its set to the current directory by default."
         (insert-file-contents jsts-licenses-file)
         (read (current-buffer))))))
 
-;;; package.json
+;;; * package.json
 
 (defun jsts--package-json-parse (file)
   (let ((json-object-type 'alist)
@@ -186,7 +186,7 @@ If DIR is not supplied its set to the current directory by default."
 (defun jsts--package-json-get-scripts (parsed-file)
   (alist-get "scripts" parsed-file nil nil #'string=))
 
-;;; View package
+;;; * View package
 
 (defun jsts--view-package-data (package-name)
   "Run the info command and return the parsed the output"
@@ -303,7 +303,7 @@ package manager (or npm when none is identified) to fetch the data."
             (jsts--insert-dependency-section "Bundle Dependencies" deps))
           (buffer-string))))))
 
-;;; Common transient parts
+;;; * Common transient parts
 
 (defun jsts--exec-suffix ()
   "Common suffix to run data coming from the scope and args"
@@ -323,7 +323,7 @@ package manager (or npm when none is identified) to fetch the data."
                  default-directory)))
     (jsts--clear-project-cache-for-dir cwd)))
 
-;;; jsts--transient-option class
+;;; ** jsts--transient-option class
 
 (defclass jsts--transient-option (transient-option)
   ((print-argument :initarg :print-argument :initform t))
@@ -346,7 +346,7 @@ package manager (or npm when none is identified) to fetch the data."
             (when value (propertize (prin1-to-string value t)
                                     'face 'transient-value)))))
 
-;;; jsts--transient-scope-option class
+;;; ** jsts--transient-scope-option class
 
 (defclass jsts--transient-scope-option (jsts--transient-option)
   ((scope-key :initarg :scope-key))
@@ -381,7 +381,9 @@ package manager (or npm when none is identified) to fetch the data."
   :key "$c"
   :always-read t)
 
-;;; npm
+;;; * Package managers transient menus
+
+;;; ** npm
 
 (transient-define-argument jsts--npm-install-save-arg ()
   "Choices for how to save a package"
@@ -521,7 +523,7 @@ current project root is used."
   (transient-setup 'jsts-npm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
-;;; bun
+;;; ** bun
 
 ;;;###autoload
 (transient-define-prefix jsts-bun-run-script (&optional script cwd)
@@ -581,7 +583,7 @@ current project root is used."
   (transient-setup 'jsts-bun nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
-;;; deno
+;;; ** deno
 
 ;;;###autoload
 (transient-define-prefix jsts-deno-init ()
@@ -610,7 +612,7 @@ current project root is used."
   (transient-setup 'jsts-deno nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
-;;; pnpm
+;;; ** pnpm
 
 ;;;###autoload
 (transient-define-prefix jsts-pnpm-run-script (&optional script cwd)
@@ -663,7 +665,7 @@ current project root is used."
   (transient-setup 'jsts-pnpm nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
-;;; yarn
+;;; ** yarn
 
 ;;;###autoload
 (transient-define-prefix jsts-yarn-run-script (&optional script cwd)
@@ -715,7 +717,7 @@ current project root is used."
   (transient-setup 'jsts-yarn nil nil
                    :scope `(:cwd ,(jsts-project-root))))
 
-;;; jsts entrypoint
+;;; * jsts entrypoint
 
 (defun jsts-package-manager (&optional project)
   "Return package manager name.
