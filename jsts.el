@@ -326,7 +326,7 @@ package manager (or npm when none is identified) to fetch the data."
 ;;; jsts--transient-option class
 
 (defclass jsts--transient-option (transient-option)
-  ((print-argument :initarg :print-argument :initform nil))
+  ((print-argument :initarg :print-argument :initform t))
   "Class used for arguments that may not print it's argument back on the value")
 
 (cl-defmethod transient-infix-value ((obj jsts--transient-option))
@@ -445,6 +445,7 @@ package manager (or npm when none is identified) to fetch the data."
   :key " s"
   :prompt "Script: "
   :choices (lambda () #'jsts--npm-script-completion-table)
+  :print-argument nil
   :argument ":script=" ; this won't get printed, but it's useful when initializing a prefix
   :always-read t
   :allow-empty nil)
@@ -474,7 +475,7 @@ current project root is used."
    ("-I" "Ignore scripts" "--ignore-scripts")
    " "
    (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg :print-argument t)
+   (jsts--npm-script-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -539,7 +540,7 @@ current project root is used."
    ("-h" "Hot reload" "--hot")
    " "
    (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg)
+   (jsts--npm-script-args-arg :print-argument nil)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -624,7 +625,7 @@ current project root is used."
    (jsts--cwd-infix)
    " "
    (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg)
+   (jsts--npm-script-args-arg :print-argument nil)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
@@ -677,7 +678,7 @@ current project root is used."
    (jsts--cwd-infix)
    " "
    (jsts--npm-script-arg)
-   (jsts--npm-script-args-arg :print-argument t)
+   (jsts--npm-script-args-arg)
    " "
    ("RET" "Run" jsts--exec-suffix)]
   (interactive)
