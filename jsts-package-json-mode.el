@@ -27,6 +27,25 @@
   "Enhancements for package.json files."
   :group 'tools)
 
+(defvar jsts-package-json--dependencies-ts-query
+  (let* ((dep-key-regexp (rx-let ((dep-keys (or "dependencies" "devDependencies" "peerDependencies" "optionalDependencies")))
+                           (rx bol ?\" dep-keys ?\" eol)))
+         (query `((pair
+                   key: (string) @dep-key
+                   value: (object (pair
+                                   key: (string) @pkg-key
+                                   value: (string)))
+                   (:match ,dep-key-regexp @dep-key)))))
+    (treesit-query-compile 'json query)))
+
+(defvar jsts-package-json--scripts-ts-query
+  (treesit-query-compile 'json '((pair
+                                  key: (string) @scripts-key
+                                  value: (object (pair
+                                                  key: (string) @script-key
+                                                  value: (string)))
+                                  (:match "^\"scripts\"$" @scripts-key)))))
+
 (define-button-type 'jsts-package-json--button
   'jsts-package-json--overlay t
   'follow-link t
@@ -39,15 +58,7 @@
   "Find all dependency names in package.json and make them buttons."
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
-  (let* ((dep-key-regexp (rx-let ((dep-keys (or "dependencies" "devDependencies" "peerDependencies" "optionalDependencies")))
-                           (rx bol ?\" dep-keys ?\" eol)))
-         (query `((pair
-                   key: (string) @dep-key
-                   value: (object (pair
-                                   key: (string) @pkg-key
-                                   value: (string)))
-                   (:match ,dep-key-regexp @dep-key))))
-         (matches (treesit-query-capture 'json query)))
+  (let* ((matches (treesit-query-capture 'json jsts-package-json--dependencies-ts-query)))
     (dolist (match matches)
       (let ((capture (car match))
             (node (cdr match)))
@@ -72,13 +83,7 @@
   "Find all script names in package.json and make them buttons."
   (when (not (derived-mode-p 'json-ts-mode))
     (user-error "Only json-ts-mode is supported."))
-  (let* ((query '((pair
-                   key: (string) @scripts-key
-                   value: (object (pair
-                                   key: (string) @script-key
-                                   value: (string)))
-                   (:match "^\"scripts\"$" @scripts-key))))
-         (matches (treesit-query-capture 'json query)))
+  (let* ((matches (treesit-query-capture 'json jsts-package-json--scripts-ts-query)))
     (dolist (match matches)
       (let ((capture (car match))
             (node (cdr match)))
